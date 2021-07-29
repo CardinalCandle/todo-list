@@ -53,19 +53,27 @@ const toDo = ((nam,des,du,priorit) => {
 })
 
 const categories = (() => {
+    if (localStorage.length>0) {
+        var base = JSON.parse(localStorage.getItem('base'))
+        var added = JSON.parse(localStorage.getItem('added'))
+    }
+    else {
     var base = {
         "All Tasks": [],
         "This week": [],
-        "Urgent":[],}
+        "Urgent":[],
+        "Completed": [],}
     var added = {
-        "GH" :[],
     }
+}
     const add = (name) => {
         added[name] = []
+        saveToLocal()
         return added
     }
     const remove = (name) => {
         delete added[name]
+        saveToLocal()
         return added
     }
     const addToCategories = (task) => {
@@ -73,7 +81,38 @@ const categories = (() => {
         if (task.priority == "urgent") {
             base['Urgent'].push(task)
         }
-        return console.log(base)
+        domControl.makeSideBar()
+        //base['All Tasks'].forEach(element => {console.log(element)})
+        let found = base['All Tasks'].find(element => element.name.includes(task.name))
+        console.log(found)
+        domControl.makeToDo('All Tasks')
+        return saveToLocal()
+    }
+    const setComplete = (nam) => {
+        let found = base['All Tasks'].find(element => element.name.includes(nam))
+        base['Completed'].push(found)
+        removeFromCategory(found, 'All Tasks')
+        saveToLocal()
+    }
+    const removeFromCategory = (task, cat) => {
+        let found = base[cat].findIndex(element => element.name.includes(task.name))
+        categories.base[cat].pop(found) ;
+        saveToLocal()
+    }
+    const removeTodo = (name) => {
+        Object.keys(base).forEach(element => {
+            let found = base[element].findIndex(e => e.name.includes(name))
+            categories.base[element].pop(found)
+        })
+        Object.keys(added).forEach(element => {
+            let found = added[element].findIndex(e => e.name.includes(name))
+            categories.added[element].pop(found)
+        })
+        saveToLocal()
+    }
+    const saveToLocal = () => {
+        localStorage.setItem('base', JSON.stringify(categories.base))
+        localStorage.setItem('added', JSON.stringify(categories.added))
     }
     return {
         base,
@@ -81,9 +120,12 @@ const categories = (() => {
         add,
         remove,
         addToCategories,
+        setComplete,
+        removeTodo,
+        saveToLocal,
     }
 })()
-
+categories.saveToLocal()
 const domControl = (() => {
     const makeNavBar = () => {
         component('div','','uni','','','')
@@ -96,20 +138,25 @@ const domControl = (() => {
         component('div','+','addbtn','topbar','','')
         component('div','','content','uni','','')
         component('div','','sidebar','content','','')
+        component('div','','cont','content','','')
 
         return
     }
     const makeSideBar = () => {
-
         rmChildren('sidebar')
+        removeListeners('sidebar','content')
         Object.keys(categories.base).forEach(element => {
-            component('div',element,'sideel','sidebar','','')
+            component('div','',element + 'contain','sidebar','basecontain','')
+            component('div',element, element + 'text', element + 'contain','basetext','')
+            component('div',categories.base[element].length, element + 'del', element + 'contain','basenum','')
+            addEventShowCategory('base', element + 'contain')
         })
         Object.keys(categories.added).forEach(element => {
             component('div','',element + 'contain','sidebar','catcontain','')
             component('div',element, element + 'text', element + 'contain','cattext','')
             component('button','X', element + 'del', element + 'contain','catdel','')
             addEventDelProject(element)
+            addEventShowCategory('added', element + 'contain')
         })
         component('div','+ Add project','sideadd','sidebar','','')
         component('div','','toadd','sidebar','','')
@@ -119,11 +166,32 @@ const domControl = (() => {
         addEventAddCategory()
         addEventShowProjectBox()
     }
-    const makeToDo = () => {
-    component('div','','cont','content','','')
-    component('div','','todo','cont','','')
-    component('div','','done','todo','','')
-    component('div','WRYYYYYYYYYYYY','todoname','todo','','')
+    const makeToDo = (cattype, cat) => {
+        rmChildren('cont')
+        if (cattype == 'base') {
+            let category = categories.base[cat]
+            category.forEach(element => {
+                component('div', '', 'todo','cont','','')
+                component('div', '', element+'done','todo','done','')
+                component('div', element.name,'todoname','todo','','')
+                component('div','Due on ' + element.due,'tododue','todo','','')
+                component('div','Del', element.name + 'del','todo','tododel','')
+                addEventSetComplete(cattype, element+'done')
+                addEventDelTodo(element.name + 'del')
+    
+        })}
+        else if (cattype == 'added') {
+            var category = categories.added[cat]
+            category.forEach(element => {
+                component('div','','todo','cont','','')
+                component('div','',element+'done','todo','done','')
+                component('div',element.name,'todoname','todo','','')
+                component('div','Due on ' + element.due,'tododue','todo','','')
+                addEventSetComplete(cattype, element+'done')
+    
+        }
+        )
+    }
     }
     const makeForm = () => {
         component('div','','overlay','','','')
@@ -145,7 +213,7 @@ const domControl = (() => {
         document.getElementById('urgprio').setAttribute('value', 'urgent')
         component('button','Add Task','taddbtn','addtodo','','')
         return
-        }
+    }
     const rmChildren = (id) => {
         while (document.getElementById(id).children.length != 0) {
             document.getElementById(id).children[0].remove()
@@ -157,19 +225,21 @@ const domControl = (() => {
                 categories.remove(id)
                 return makeSideBar()
             })
-        }
+    }
     const addEventShowProjectBox = () => {
         document.getElementById('sideadd').addEventListener('click', () => {
             let display = document.getElementById('toadd').style.display
             if (display == 'none') {
                 document.getElementById('toadd').style.display = "flex";
-                 return ;
+                 return console.log(display);
              }
-             else {
+            else if (display == 'flex') {
                 document.getElementById('toadd').style.display = 'none';
-                 return;
-                }
-         
+                return console.log(display);
+            }
+            else {
+                return
+            }       
         })
         
     }
@@ -216,6 +286,14 @@ const domControl = (() => {
         })
         
     }
+    const addEventDelTodo = (id) => {
+        document.getElementById(id).addEventListener('click', () => {
+            let nam = document.getElementById(id).parentElement.children[1]
+            categories.removeTodo(nam)
+            makeSideBar()
+            makeToDo()
+        })
+    }
     const addEventAddCategory = () => {
         document.getElementById('toaddbtn').addEventListener('click', () => {
             let category = document.getElementById('toaddtext').value
@@ -231,6 +309,27 @@ const domControl = (() => {
         })
     
     }
+    const addEventSetComplete = (cattype, id) => {
+        document.getElementById(id).addEventListener('click', () => {
+            todo = document.getElementById(id).parentElement.children[1].textContent
+            categories.setComplete(todo)
+            console.log(categories.base['All Tasks'])
+            console.log(categories.base['Completed'])
+            makeSideBar()
+            makeToDo('base', 'All Tasks')
+        })
+    }
+    const addEventShowCategory = (cattype, id) => {
+        document.getElementById(id).addEventListener('click', () => {
+            let cat = document.getElementById(id).children[0].textContent
+            makeToDo(cattype, cat)
+        })
+    }
+    const removeListeners = (id, parent) => {
+        let cln = document.getElementById(id).cloneNode(true)
+        document.getElementById(id).remove()
+        document.getElementById(parent).insertBefore(cln, document.getElementById(parent).children[0])
+    }
     return {rmChildren,
             makeNavBar,
             makeSideBar,
@@ -242,22 +341,22 @@ const domControl = (() => {
             addEventToggleSideBar,
             addEventAddTodo,
             addEventAddCategory,
-            }
+            addEventSetComplete,
+            addEventShowCategory,
+            addEventDelTodo,
+            removeListeners,
+    }
 })()
 
 domControl.makeNavBar()
 domControl.makeSideBar()
-domControl.makeToDo()
+domControl.makeToDo('All Tasks')
 domControl.makeForm()
 //domControl.addEventDelProject()
-domControl.addEventShowProjectBox()
 domControl.addEventShowTodoScreen()
 domControl.addEventToggleSideBar()
 domControl.addEventAddTodo()
-domControl.addEventAddCategory()
-
-
-
+domControl.addEventAddCategory();
 
 /***/ }),
 /* 2 */
@@ -576,7 +675,7 @@ __webpack_require__.r(__webpack_exports__);
 
 var ___CSS_LOADER_EXPORT___ = _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_0___default()(function(i){return i[1]});
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, "html {\n    height: 100%;\n}\nbody{\n    padding:0;\n    margin:0;\n    height: 100%;\n}\n#uni {\n    display: flex;\n    flex-direction: column;\n    height: 100%;\n}\n#topcontainer{\n    user-select: none;\n    background-color:#603F83FF;\n    color: #C7D3D4FF;\n    font-family:Arial, Helvetica, sans-serif;\n    text-align: center;\n    display: flex;\n    flex-direction: column;\n    justify-content: center;\n    align-items: center;\n    margin: 0 auto;\n    align-content: center;\n}\n#topbar {\n    display: flex;\n    flex-direction: row;\n    user-select: none;\n    background-color:#603F83FF;\n    color: #C7D3D4FF;\n    font-family:Arial, Helvetica, sans-serif;\n    text-align: center;\n    padding: 1% 10%;\n    align-items: center;\n    justify-content: space-between;\n}\n#title {\n    font-weight: 900;\n    font-size: 4vh;\n}\n#subtitle {\n    font-size: 2vh;\n}\n#sidebar {\n    background-color:whitesmoke;\n    width: 30%;\n    font-family: Arial, Helvetica, sans-serif;\n    display:flex;\n    flex-direction: column;\n    height: 100%;\n    border-width: 1px;\n    border-style: hidden solid hidden hidden;\n    border-color: rgba(211, 211, 211, 0.233);\n}\n#sideel {\n    user-select: none;\n    font-size: 2.75vh;\n    padding: 7% 20%;\n    font-weight: 400;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\n}\n#sideel:hover {\n    background-color:rgba(211, 211, 211, 0.256);\n    border-radius: 5px;\n\n}\n#content {\n    display: flex;\n    flex-direction: row;\n    height: 100%;\n    overflow: auto;\n}\n#cont {\n    background-color: white;\n    width: 100%;\n    padding: 2vh;  \n    overflow: auto;\n\n}\n#todo {\n    user-select: none;\n    padding: 10px;\n    margin: 10px 0;\n    border-style: solid;\n    border-radius: 20px;\n    border-width: 1px;\n    border-color: #603F83FF ;\n    color: black;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\n\n}\n#sideadd {\n    margin: 20px 10px;\n    padding: 20px 0;\n    user-select: none;\n    color: #603F83FF ;\n    text-align: center;\n    font-size: 2.2vh;\n    font-weight: 600;\n    border-style: solid hidden hidden hidden;\n    border-width: 1px;\n    border-color: #C7D3D4FF;\n    user-select: none;\n}\n#sideadd:hover {\n    margin: 20px 0;\n    width: 100%;\n    background-color: #603F83FF ;\n    color: #C7D3D4FF;\n    text-align: center;\n}\n\n#todo {\n    display: flex;\n    flex-direction: row;\n    align-items: center;\n}\n#done{\n    width: 20px;\n    padding-bottom: 20px ;\n    border-style: solid;\n    border-color: #603F83FF;\n    border-radius: 50%;\n    border-width: 2px;\n}\n#done:hover {\n    background-color: #603F83FF;\n}\n#todoname {\n    margin: 0 10px;\n}\n#smenu {\n    height: 5vh ;\n    width: 5vh;\n    transform: scale(1.4);\n}\n#smenu:hover,\n#addbtn:hover {\n    background-color: rgba(199, 211, 212, 0.521);\n    border-radius: 50%;\n}\n#addbtn{\n    width: 7vh;\nfont-size: 6vh;\ncolor: white;\nfont-weight:900;\n}\n#formcont {\n    width: 25%;\n    margin: auto;\nposition: absolute;\ntop: 30vh; left: 40vh;\nbottom: 30vh; right: 40vh;\nbackground-color: #603F83FF ;\noverflow:auto;\ncolor: #FFF;\nz-index:5;\ndisplay: flex;\nflex-direction: column;\nborder-radius: 15px;\nbox-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);\n}\n\n/* .formcont {\n    position: absolute;\n    z-index: 1;\n    width: 50vh;\n    height: 50vh;\n    background: slateblue;\n    top: 0;\nmargin: 20% 29%;\nborder-radius: 3%;\n}\n */\n #addtodo {\n    margin: 2vh;\n    display: flex;\n    flex-direction: column;\n    align-items: space-between;\n    align-content: space-between;\n    justify-items: center;\n    text-align: center;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\n}\ninput {\n    background-color: #C7D3D4FF ;\n    border-style: solid;\n    border-width: 1px;\n    border-radius: 20px;\n}\n\n#topriority {\n    background: #C7D3D4FF;\n    border-style: solid;\n    border-color: transparent;\n    border-radius: 20px;\n    color: #603F83FF ;\n}\n\n#overlay {\n    position: absolute;\n    top: 0;\n    background: rgb(0, 0, 0,0.3);\n    width: 100%;\n    height: 100%;\n}\n#toadd {\n    padding: 5% 0.1%;\n    margin: 0 auto;\n    width: 100%;\n    border-radius: 0;\n    display: flex;\n    flex-direction: row;\n    flex-wrap: wrap;\n    background-color: #603F83FF;\n    justify-content: center;\n}\n\n#toaddtext {\n    margin: 0 auto;\n    border-radius: 0;\n    width: 80%;\n    border-radius: 5px;\n\n}\n#toaddbtn {\n    margin: 10px 0 0 0 ;\n    border-radius: 0;\n    width: 82%;\n    border-style: solid;\n    border-width: 1px;\n    border-radius: 5px;\n}\n#toaddbtn:hover {\n    background-color: #603F83FF;\n    color: #C7D3D4FF;\n    border-color: #C7D3D4FF;\n    border-style: solid;\n    border-width: 1px;\n}\n.catcontain {\n    display: flex;\n    justify-content: space-between;\n    flex-direction: row;\n    user-select: none;\n    font-size: 2.75vh;\n    padding: 10% 5% 10% 20%;\n    font-weight: 400;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\n}\n.catcontain:hover {\n    background-color:rgba(211, 211, 211, 0.256);\n    border-radius: 5px;\n}\n.catdel {\n    justify-self:right;\n    font-size: 2.75vh;\n    border-width: 1px;\n    border-style: hidden;\n    background-color: transparent;\n    padding: 0 1vh;\n    font-weight: 900;\n    color: rgba(211, 211, 211, 0.212);\n}\n.catdel:hover {\n    background-color: red;\n    color: lightgray;\n}", ""]);
+___CSS_LOADER_EXPORT___.push([module.id, "html {\n    height: 100%;\n}\nbody{\n    padding:0;\n    margin:0;\n    height: 100%;\n}\n#uni {\n    display: flex;\n    flex-direction: column;\n    height: 100%;\n}\n#topcontainer{\n    user-select: none;\n    background-color:#603F83FF;\n    color: #C7D3D4FF;\n    font-family:Arial, Helvetica, sans-serif;\n    text-align: center;\n    display: flex;\n    flex-direction: column;\n    justify-content: center;\n    align-items: center;\n    margin: 0 auto;\n    align-content: center;\n}\n#topbar {\n    display: flex;\n    flex-direction: row;\n    user-select: none;\n    background-color:#603F83FF;\n    color: #C7D3D4FF;\n    font-family:Arial, Helvetica, sans-serif;\n    text-align: center;\n    padding: 1% 10%;\n    align-items: center;\n    justify-content: space-between;\n}\n#title {\n    font-weight: 900;\n    font-size: 4vh;\n}\n#subtitle {\n    font-size: 2vh;\n}\n#sidebar {\n    background-color:whitesmoke;\n    width: 30%;\n    font-family: Arial, Helvetica, sans-serif;\n    display:flex;\n    flex-direction: column;\n    height: 100%;\n    border-width: 1px;\n    border-style: hidden solid hidden hidden;\n    border-color: rgba(211, 211, 211, 0.233);\n}\n#sideel {\n    user-select: none;\n    font-size: 2.75vh;\n    padding: 7% 20%;\n    font-weight: 400;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\n}\n#sideel:hover, .basecontain:hover {\n    background-color:rgba(211, 211, 211, 0.256);\n    border-radius: 5px;\n\n}\n#content {\n    display: flex;\n    flex-direction: row;\n    height: 100%;\n    overflow: auto;\n}\n#cont {\n    background-color: white;\n    width: 100%;\n    padding: 2vh;  \n    overflow: auto;\n\n}\n#todo {\n    user-select: none;\n    padding: 10px;\n    margin: 10px 0;\n    border-style: solid;\n    border-radius: 20px;\n    border-width: 1px;\n    border-color: #603F83FF ;\n    color: black;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\n\n}\n#sideadd {\n    margin: 20px 10px;\n    padding: 20px 0;\n    user-select: none;\n    color: #603F83FF ;\n    text-align: center;\n    font-size: 2.2vh;\n    font-weight: 600;\n    border-style: solid hidden hidden hidden;\n    border-width: 1px;\n    border-color: #C7D3D4FF;\n    user-select: none;\n}\n#sideadd:hover {\n    margin: 20px 0;\n    width: 100%;\n    background-color: #603F83FF ;\n    color: #C7D3D4FF;\n    text-align: center;\n}\n\n#todo {\n    display: flex;\n    flex-direction: row;\n    align-items: center;\n}\n.done{\n    width: 20px;\n    padding-bottom: 20px ;\n    border-style: solid;\n    border-color: #603F83FF;\n    border-radius: 50%;\n    border-width: 2px;\n}\n.done:hover {\n    background-color: #603F83FF;\n}\n#todoname {\n    margin: 0 10px;\n}\n#smenu {\n    height: 5vh ;\n    width: 5vh;\n    transform: scale(1.4);\n}\n#smenu:hover,\n#addbtn:hover {\n    background-color: rgba(199, 211, 212, 0.521);\n    border-radius: 50%;\n}\n#addbtn{\n    width: 7vh;\nfont-size: 6vh;\ncolor: white;\nfont-weight:900;\n}\n#formcont {\n    width: 25%;\n    margin: auto;\nposition: absolute;\ntop: 30vh; left: 40vh;\nbottom: 30vh; right: 40vh;\nbackground-color: #603F83FF ;\noverflow:auto;\ncolor: #FFF;\nz-index:5;\ndisplay: flex;\nflex-direction: column;\nborder-radius: 15px;\nbox-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);\n}\n\n/* .formcont {\n    position: absolute;\n    z-index: 1;\n    width: 50vh;\n    height: 50vh;\n    background: slateblue;\n    top: 0;\nmargin: 20% 29%;\nborder-radius: 3%;\n}\n */\n #addtodo {\n    margin: 2vh;\n    display: flex;\n    flex-direction: column;\n    align-items: space-between;\n    align-content: space-between;\n    justify-items: center;\n    text-align: center;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\n}\ninput {\n    background-color: #C7D3D4FF ;\n    border-style: solid;\n    border-width: 1px;\n    border-radius: 20px;\n}\n\n#topriority {\n    background: #C7D3D4FF;\n    border-style: solid;\n    border-color: transparent;\n    border-radius: 20px;\n    color: #603F83FF ;\n}\n\n#overlay {\n    position: absolute;\n    top: 0;\n    background: rgb(0, 0, 0,0.3);\n    width: 100%;\n    height: 100%;\n}\n#toadd {\n    padding: 5% 0.1%;\n    margin: 0 auto;\n    width: 100%;\n    border-radius: 0;\n    display: flex;\n    flex-direction: row;\n    flex-wrap: wrap;\n    background-color: #603F83FF;\n    justify-content: center;\n}\n\n#toaddtext {\n    margin: 0 auto;\n    border-radius: 0;\n    width: 80%;\n    border-radius: 5px;\n\n}\n#toaddbtn {\n    margin: 10px 0 0 0 ;\n    border-radius: 0;\n    width: 82%;\n    border-style: solid;\n    border-width: 1px;\n    border-radius: 5px;\n}\n#toaddbtn:hover {\n    background-color: #603F83FF;\n    color: #C7D3D4FF;\n    border-color: #C7D3D4FF;\n    border-style: solid;\n    border-width: 1px;\n}\n.catcontain, .basecontain {\n    display: flex;\n    justify-content: space-between;\n    flex-direction: row;\n    user-select: none;\n    font-size: 2.75vh;\n    padding: 10% 5% 10% 20%;\n    font-weight: 400;\n    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;\n}\n.catcontain:hover {\n    background-color:rgba(211, 211, 211, 0.256);\n    border-radius: 5px;\n}\n.catdel{\n    justify-self:right;\n    font-size: 2.75vh;\n    border-width: 1px;\n    border-style: hidden;\n    background-color: transparent;\n    padding: 0 1vh;\n    font-weight: 900;\n    color: rgba(211, 211, 211, 0.212);\n}\n.catdel:hover {\n    background-color: rgba(255, 0, 0, 0.5);\n    color: lightgray;\n}\n#tododue {\n    color: rgba(0, 0, 0, 0.25);\n}\n.basenum {\n    color: rgba(0, 0, 0, 0.212);\n    font-size: 2.5vh;\n}\n.tododel {\n    margin: 0 0 0 auto;\n    padding: 2.2249px;\n    border-radius: 7px;\n}\n.tododel:hover {\n    background-color: rgba(255, 0, 0, 0.5);\n}", ""]);
 // Exports
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
 

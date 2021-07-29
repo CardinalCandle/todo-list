@@ -42,19 +42,27 @@ const toDo = ((nam,des,du,priorit) => {
 })
 
 const categories = (() => {
+    if (localStorage.length>0) {
+        var base = JSON.parse(localStorage.getItem('base'))
+        var added = JSON.parse(localStorage.getItem('added'))
+    }
+    else {
     var base = {
         "All Tasks": [],
         "This week": [],
-        "Urgent":[],}
+        "Urgent":[],
+        "Completed": [],}
     var added = {
-        "GH" :[],
     }
+}
     const add = (name) => {
         added[name] = []
+        saveToLocal()
         return added
     }
     const remove = (name) => {
         delete added[name]
+        saveToLocal()
         return added
     }
     const addToCategories = (task) => {
@@ -62,7 +70,38 @@ const categories = (() => {
         if (task.priority == "urgent") {
             base['Urgent'].push(task)
         }
-        return console.log(base)
+        domControl.makeSideBar()
+        //base['All Tasks'].forEach(element => {console.log(element)})
+        let found = base['All Tasks'].find(element => element.name.includes(task.name))
+        console.log(found)
+        domControl.makeToDo('All Tasks')
+        return saveToLocal()
+    }
+    const setComplete = (nam) => {
+        let found = base['All Tasks'].find(element => element.name.includes(nam))
+        base['Completed'].push(found)
+        removeFromCategory(found, 'All Tasks')
+        saveToLocal()
+    }
+    const removeFromCategory = (task, cat) => {
+        let found = base[cat].findIndex(element => element.name.includes(task.name))
+        categories.base[cat].pop(found) ;
+        saveToLocal()
+    }
+    const removeTodo = (name) => {
+        Object.keys(base).forEach(element => {
+            let found = base[element].findIndex(e => e.name.includes(name))
+            categories.base[element].pop(found)
+        })
+        Object.keys(added).forEach(element => {
+            let found = added[element].findIndex(e => e.name.includes(name))
+            categories.added[element].pop(found)
+        })
+        saveToLocal()
+    }
+    const saveToLocal = () => {
+        localStorage.setItem('base', JSON.stringify(categories.base))
+        localStorage.setItem('added', JSON.stringify(categories.added))
     }
     return {
         base,
@@ -70,9 +109,12 @@ const categories = (() => {
         add,
         remove,
         addToCategories,
+        setComplete,
+        removeTodo,
+        saveToLocal,
     }
 })()
-
+categories.saveToLocal()
 const domControl = (() => {
     const makeNavBar = () => {
         component('div','','uni','','','')
@@ -85,20 +127,25 @@ const domControl = (() => {
         component('div','+','addbtn','topbar','','')
         component('div','','content','uni','','')
         component('div','','sidebar','content','','')
+        component('div','','cont','content','','')
 
         return
     }
     const makeSideBar = () => {
-
         rmChildren('sidebar')
+        removeListeners('sidebar','content')
         Object.keys(categories.base).forEach(element => {
-            component('div',element,'sideel','sidebar','','')
+            component('div','',element + 'contain','sidebar','basecontain','')
+            component('div',element, element + 'text', element + 'contain','basetext','')
+            component('div',categories.base[element].length, element + 'del', element + 'contain','basenum','')
+            addEventShowCategory('base', element + 'contain')
         })
         Object.keys(categories.added).forEach(element => {
             component('div','',element + 'contain','sidebar','catcontain','')
             component('div',element, element + 'text', element + 'contain','cattext','')
             component('button','X', element + 'del', element + 'contain','catdel','')
             addEventDelProject(element)
+            addEventShowCategory('added', element + 'contain')
         })
         component('div','+ Add project','sideadd','sidebar','','')
         component('div','','toadd','sidebar','','')
@@ -108,11 +155,32 @@ const domControl = (() => {
         addEventAddCategory()
         addEventShowProjectBox()
     }
-    const makeToDo = () => {
-    component('div','','cont','content','','')
-    component('div','','todo','cont','','')
-    component('div','','done','todo','','')
-    component('div','WRYYYYYYYYYYYY','todoname','todo','','')
+    const makeToDo = (cattype, cat) => {
+        rmChildren('cont')
+        if (cattype == 'base') {
+            let category = categories.base[cat]
+            category.forEach(element => {
+                component('div', '', 'todo','cont','','')
+                component('div', '', element+'done','todo','done','')
+                component('div', element.name,'todoname','todo','','')
+                component('div','Due on ' + element.due,'tododue','todo','','')
+                component('div','Del', element.name + 'del','todo','tododel','')
+                addEventSetComplete(cattype, element+'done')
+                addEventDelTodo(element.name + 'del')
+    
+        })}
+        else if (cattype == 'added') {
+            var category = categories.added[cat]
+            category.forEach(element => {
+                component('div','','todo','cont','','')
+                component('div','',element+'done','todo','done','')
+                component('div',element.name,'todoname','todo','','')
+                component('div','Due on ' + element.due,'tododue','todo','','')
+                addEventSetComplete(cattype, element+'done')
+    
+        }
+        )
+    }
     }
     const makeForm = () => {
         component('div','','overlay','','','')
@@ -134,7 +202,7 @@ const domControl = (() => {
         document.getElementById('urgprio').setAttribute('value', 'urgent')
         component('button','Add Task','taddbtn','addtodo','','')
         return
-        }
+    }
     const rmChildren = (id) => {
         while (document.getElementById(id).children.length != 0) {
             document.getElementById(id).children[0].remove()
@@ -146,19 +214,21 @@ const domControl = (() => {
                 categories.remove(id)
                 return makeSideBar()
             })
-        }
+    }
     const addEventShowProjectBox = () => {
         document.getElementById('sideadd').addEventListener('click', () => {
             let display = document.getElementById('toadd').style.display
             if (display == 'none') {
                 document.getElementById('toadd').style.display = "flex";
-                 return ;
+                 return console.log(display);
              }
-             else {
+            else if (display == 'flex') {
                 document.getElementById('toadd').style.display = 'none';
-                 return;
-                }
-         
+                return console.log(display);
+            }
+            else {
+                return
+            }       
         })
         
     }
@@ -205,6 +275,14 @@ const domControl = (() => {
         })
         
     }
+    const addEventDelTodo = (id) => {
+        document.getElementById(id).addEventListener('click', () => {
+            let nam = document.getElementById(id).parentElement.children[1]
+            categories.removeTodo(nam)
+            makeSideBar()
+            makeToDo()
+        })
+    }
     const addEventAddCategory = () => {
         document.getElementById('toaddbtn').addEventListener('click', () => {
             let category = document.getElementById('toaddtext').value
@@ -220,6 +298,27 @@ const domControl = (() => {
         })
     
     }
+    const addEventSetComplete = (cattype, id) => {
+        document.getElementById(id).addEventListener('click', () => {
+            todo = document.getElementById(id).parentElement.children[1].textContent
+            categories.setComplete(todo)
+            console.log(categories.base['All Tasks'])
+            console.log(categories.base['Completed'])
+            makeSideBar()
+            makeToDo('base', 'All Tasks')
+        })
+    }
+    const addEventShowCategory = (cattype, id) => {
+        document.getElementById(id).addEventListener('click', () => {
+            let cat = document.getElementById(id).children[0].textContent
+            makeToDo(cattype, cat)
+        })
+    }
+    const removeListeners = (id, parent) => {
+        let cln = document.getElementById(id).cloneNode(true)
+        document.getElementById(id).remove()
+        document.getElementById(parent).insertBefore(cln, document.getElementById(parent).children[0])
+    }
     return {rmChildren,
             makeNavBar,
             makeSideBar,
@@ -231,18 +330,19 @@ const domControl = (() => {
             addEventToggleSideBar,
             addEventAddTodo,
             addEventAddCategory,
-            }
+            addEventSetComplete,
+            addEventShowCategory,
+            addEventDelTodo,
+            removeListeners,
+    }
 })()
 
 domControl.makeNavBar()
 domControl.makeSideBar()
-domControl.makeToDo()
+domControl.makeToDo('All Tasks')
 domControl.makeForm()
 //domControl.addEventDelProject()
-domControl.addEventShowProjectBox()
 domControl.addEventShowTodoScreen()
 domControl.addEventToggleSideBar()
 domControl.addEventAddTodo()
-domControl.addEventAddCategory()
-
-
+domControl.addEventAddCategory();
